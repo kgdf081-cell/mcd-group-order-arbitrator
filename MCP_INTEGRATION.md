@@ -36,6 +36,10 @@
 
 未使用的工具：`create-order`（不下单）、`list-nutrition-foods`（MCP 无辣度/过敏原字段，热量不在 MVP 范围）、`query-meals-by-*` 等其余工具。
 
+> 补充探测过、**验证后决定不用**的工具：`query-my-account`（只返回积分，无会员卡状态，因此无法判断用户是否持有麦金卡）。
+> 结果见 `demo/membership-probe-20261025.md` §3.1。
+
+
 ---
 
 ## 3. 调用流程（六步，正常一单 14 次左右）
@@ -43,11 +47,12 @@
 ```
 ① 定门店        2 次   now-time-info → query-nearby-stores → 用户选店
 ② 建池          2 次   query-meals + query-store-coupons
-                        剔除随单购 / 学生专享 / 儿童餐 / 周边
-                        打辣度标签；券商品单独入池
+                        按麦金卡模式处理随单购（A 剔除 / B、C 保留）
+                        剔除学生专享 / 儿童餐 / 周边；打辣度标签；券商品单独入池
 ③ 取套餐结构    3–5 次 query-meal-detail（3–5 个模板）
 ④ 生成候选      0 次   按成员偏好选 round 配置，用 diffPrice 估算排序
-⑤ 核价          5–8 次 calculate-price（整单一次，带 roundList / 券）
+⑤ 核价          5–8 次 calculate-price（整单一次，带 roundList / 券 / withOrder）
+                        模式 C 需双次核价（无卡 + 带卡）
                         每套跑四项校验，失败即弃
 ⑥ 输出          0 次   三套方案 + maxS/ΣS + 辣风险三栏 + traceId + 限定语
 ```
@@ -79,11 +84,49 @@
     "quantity": 1
   }]
 }
+
+// 随单购（麦金卡模式 B/C）：withOrder 在【顶层】，与 items 同级
+{
+  "storeCode": "<动态获取>", "orderType": 1, "beType": 1,
+  "withOrder": {
+    "membershipCode":   "<query-meals → meals[code].withOrder.membershipCode>",
+    "membershipSpecId": "<query-meals → meals[code].withOrder.specId>"
+  },
+  "items": [{ "productCode": "<随单购商品>", "quantity": 1 }]
+}
 ```
 
 - `beType: 1` 的门店**不传 `beCode`**
 - 价格单位是**分**，展示时 ÷100
 - 同一商品在两个接口名称不同（菜单「薯条」→ 算价「中薯条」），**输出以 `calculate-price` 为准**
+- **`withOrder` 必须在顶层**。放进 `items[]` 会被静默忽略（返回普通价、`discount: 0`、不报错）
+- **`specId` 要改名为 `membershipSpecId`**；两个值都必须从 `query-meals` 实时读，仓库里不写死
+- 带 `withOrder` 时 `productList` 会**多一行卡片商品**（本店 `521234`，小计 9.90），`price` 已含它
+- 卡费**整单一次**，不随随单购商品数量增加
+
+---
+
+## 3.1 麦金卡三模式对 MCP 调用的影响
+
+| 模式 | 建池 | `withOrder` | 核价次数 | 关键断言 |
+|---|---|---|---|---|
+| A 无麦金卡 | 剔除随单购 | 不传 | 5–8 | 与旧版一致 |
+| B 已有麦金卡 | 保留随单购 | **顶层必传** | 5–8（不增加） | `discount > 0` 且 `productList` 有卡行 |
+| C 比较是否值得买 | 保留随单购 | 双次核价 | **翻倍，约 10–16** | 卡行小计 = 卡费，用于算净节省 |
+
+**MCP 里查不到的东西**（这两条决定了模式 B/C 的边界）：
+
+1. **是否持有麦金卡** —— `query-my-account` 只返回积分字段（`availablePoint` 等），无会员卡状态，也无「我已持卡」参数
+2. **正式麦金卡的价格与权益** —— 没有对应工具；只能从订单 `productList` 里读到接口本次加入的那张卡
+
+所以模式 C 只算「本单净节省」，不回答「办正式会员值不值」。
+
+实测（`demo/membership-probe-20261025.md`）：
+
+| 场景 | 无卡 | 带卡餐费 | 卡费 | 净节省 | traceId |
+|---|---|---|---|---|---|
+| `9900011056` 全明星双人分享餐 | 115.50 | 49.90 | 9.90 | **+55.70** | `3f7aa1c5…3a445` |
+| `9900004236` 人气超值四件套 | 57.50 | 28.00 | 9.90 | **+19.60** | `9184010b…3ed7` / `a934d6a1…26c97` |
 
 ---
 
