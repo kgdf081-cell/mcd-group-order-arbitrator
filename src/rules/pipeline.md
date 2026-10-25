@@ -209,6 +209,7 @@ minPossible = base + Σ_round min(diffPrice)     ← 用这个，不用 base
 | 返回 `quantity` < 请求 `quantity` | 静默回落（券） | 判该组合无效，改为每人 1 张不同券 |
 | `code: 401` / `403` | Token 失效 | 提示用户更新 `MCD_MCP_TOKEN` |
 | `code: 429` | 限流 | 等待后重试一次，仍失败则减半候选数 |
+| `code: 60006` + `success: false` | 商品已售罄或不可售（菜单快照过期） | **移出候选并补下一个**，不得当成「0 元」或「免费」。实测：`9900011126` 24 小时内从在售变为 60006（`ea8b5d9a…4eb9`） |
 | 门店营业时间外 | 不可下单 | 提示用户换门店或改时间 |
 | `query-meal-detail` 返回空 | 商品不存在/已下架 | 该模板移出候选，不猜测其结构 |
 | 带 `withOrder` 但 `discount: 0` | 参数未生效（层级错 / 字段名错 / 单里没有随单购商品） | **整单作废**，回头查 `withOrder` 是否在顶层、`membershipCode` 是否来自 `query-meals` |
