@@ -1,0 +1,23 @@
+# 凭据
+.env
+.env.*
+!.env.example
+
+# 本地私密记录（含完整券凭据，禁止入库）
+.local/
+
+# 日志与临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 依赖
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# 本地 WorkBuddy 配置（含 Token）
+.workbuddy/
+.mcp.json
