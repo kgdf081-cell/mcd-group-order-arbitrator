@@ -13,7 +13,7 @@
 
 ```
 A. 没有麦金卡，按普通价格计算
-B. 已有麦金卡，允许使用随单购优惠
+B. 允许使用麦金卡优惠（不要求你已持卡；接口无法验证持卡状态）
 C. 想比较是否值得购买麦金卡
 ```
 
@@ -159,11 +159,14 @@ minPossible = base + Σ_round min(diffPrice)     ← 用这个，不用 base
     "membershipSpecId":"<query-meals → meals[code].withOrder.specId>"
   },
   "items":[
-    {"productCode":"9900011056","quantity":1},
-    {"productCode":"9900011126","quantity":2}
+    {"productCode":"<本次 query-meals 返回的随单购商品 A>","quantity":1},
+    {"productCode":"<本次 query-meals 返回的普通商品 B>","quantity":2}
   ]
 }
 ```
+
+> ⚠️ **示例里不写具体商品编码。** 原因：菜单会变，写死的编码会被下一个使用者直接照抄，
+> 而它可能已经下架（实测 `code 60006`）。所有 `productCode` **只能来自本次 `query-meals` 返回**。
 
 - `withOrder` 与 `items` **同级**；放进 `items[]` 会被静默忽略（见 `coupon-pool.md` §4.1）
 - `specId` → `membershipSpecId` 是唯一允许的改名；**不得写死任何会员参数**
@@ -194,7 +197,7 @@ minPossible = base + Σ_round min(diffPrice)     ← 用这个，不用 base
 **模式标签必须出现在输出第一行**：
 
 - `模式 A · 无麦金卡（普通价格）`
-- `模式 B · 已有麦金卡（允许随单购）— 金额已包含麦金卡体验卡 ¥9.90；若你已持卡，可能无需再付这 9.90，接口无法验证，本金额可能高估`
+- `模式 B · 允许使用麦金卡优惠 — 金额已包含接口返回的卡片行 ¥9.90；若你已持卡、系统识别后无需再买，实际可能少付，但接口无法验证，本金额可能高估`
 - `模式 C · 是否值得买卡 — 以下为本次订单的净节省，不代表办正式会员划算`
 
 模式 B/C 还要额外给出一行：`卡费 ¥<productList 卡行 subtotal> × 1（整单一次）`。
@@ -209,7 +212,7 @@ minPossible = base + Σ_round min(diffPrice)     ← 用这个，不用 base
 | 返回 `quantity` < 请求 `quantity` | 静默回落（券） | 判该组合无效，改为每人 1 张不同券 |
 | `code: 401` / `403` | Token 失效 | 提示用户更新 `MCD_MCP_TOKEN` |
 | `code: 429` | 限流 | 等待后重试一次，仍失败则减半候选数 |
-| `code: 60006` + `success: false` | 商品已售罄或不可售（菜单快照过期） | **移出候选并补下一个**，不得当成「0 元」或「免费」。实测：`9900011126` 24 小时内从在售变为 60006（`ea8b5d9a…4eb9`） |
+| `code: 60006` + `success: false` | 商品已售罄或不可售（菜单快照过期） | **移出候选并补下一个**，不得当成「0 元」或「免费」。实测：某套餐编码 24 小时内从在售变为 60006（`ea8b5d9a…4eb9`；具体编码见 `demo/membership-mode-a-20261025.md` §3，本规则文件不复述） |
 | 门店营业时间外 | 不可下单 | 提示用户换门店或改时间 |
 | `query-meal-detail` 返回空 | 商品不存在/已下架 | 该模板移出候选，不猜测其结构 |
 | 带 `withOrder` 但 `discount: 0` | 参数未生效（层级错 / 字段名错 / 单里没有随单购商品） | **整单作废**，回头查 `withOrder` 是否在顶层、`membershipCode` 是否来自 `query-meals` |

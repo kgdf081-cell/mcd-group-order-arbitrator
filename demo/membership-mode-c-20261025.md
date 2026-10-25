@@ -1,8 +1,11 @@
 # 模式 C · 比较是否值得买卡（实跑记录）
 
-> 运行时间：2026-10-25 14:30（北京时间）
+> 运行时间：2026-10-25 14:30（`P_no` 单品核价于 14:51 补跑，北京时间）
 > 门店：`1990583`（麦当劳南京软件谷科创城餐厅）
 > 本文件不含 Token、完整 couponId / couponCode、手机号
+
+> **证据范围**：这是「会员模式专项核价记录」，不是完整的六步拼单链路（未调用 `query-meal-detail`）。
+> 本文只用来支撑「净节省怎么算」「哪些查不到」，不代表整套拼单求解已经跑通。
 
 ---
 
@@ -29,11 +32,15 @@ P_meal = P_yes − C_card
 Net    = P_no − P_meal
 ```
 
+> **口径声明**：下列 `P_no` 均来自**单品**无卡核价（`items` 里只有该商品 1 项），
+> 不使用任何多商品整单的 traceId 去代表单品价格。
+> 单品核价于 2026-10-25 14:51 现场补跑，与同一商品在整单中的小计一致。
+
 ### 样本 1：`9900011056` 全明星双人分享餐八件套
 
 | 项 | 金额 | traceId |
 |---|---|---|
-| `P_no` 无卡实付 | **115.50** | `bbe5776e65d658dae93a4ab6fea98e9c`（见 mode-b §2.1 同源对照）／单独核价为 `a6ea18c8a1a38522747f4b3b93df4346` |
+| `P_no` 无卡实付 | **115.50** | `db41d2a7f6b40618e07af3d068d97ba0`（单品核价，14:51:38，`productList` 仅此 1 行） |
 | `P_yes` 含卡实付 | **59.80** | `93cdbbb2df8cf5b9b2f643885ad4dd03` |
 | `C_card` 卡费 | **9.90** | 同上 |
 | `P_meal` 带卡餐费 | **49.90** | 同上 |
@@ -63,7 +70,7 @@ Net    = P_no − P_meal
 
 | 项 | 金额 | traceId |
 |---|---|---|
-| `P_no` 无卡实付 | **57.50** | `bbe5776e65d658dae93a4ab6fea98e9c`（同源对照） |
+| `P_no` 无卡实付 | **57.50** | `abfec8d98e0a9f0de9caddaba248c23f`（单品核价，14:51:42，`productList` 仅此 1 行） |
 | `P_yes` 含卡实付 | **37.90** | `6db4066618c0fed009ced5141e78fd0d` |
 | `C_card` 卡费 | **9.90** | 同上 |
 | `P_meal` 带卡餐费 | **28.00** | 同上 |
@@ -84,6 +91,24 @@ Net    = P_no − P_meal
 ```
 
 核对：`2800 + 990 = 3790` ✅；`5750 − 2800 = 2950 = discount` ✅
+
+### 两笔 `P_no` 的返回原文（单品核价）
+
+```json
+{"code":200,"traceId":"db41d2a7f6b40618e07af3d068d97ba0","data":{
+  "originalPrice":11550,"discount":0,"price":11550,
+  "productList":[{"productCode":"9900011056","productName":"全明星双人分享餐八件套",
+                  "quantity":1,"originalSubtotal":11550,"subtotal":11550}]}}
+```
+
+```json
+{"code":200,"traceId":"abfec8d98e0a9f0de9caddaba248c23f","data":{
+  "originalPrice":5750,"discount":0,"price":5750,
+  "productList":[{"productCode":"9900004236","productName":"人气超值四件套随心选",
+                  "quantity":1,"originalSubtotal":5750,"subtotal":5750}]}}
+```
+
+两笔都是 `discount: 0`、`productList` 只有 1 行、无卡片行 —— 确认是**无卡单品价**，可直接与带卡价相减。
 
 > 注意：两个样本的卡费都是 9.90，但**不是把两单的卡费相加**——卡是整单一次，跨单是否复用无法验证。
 
